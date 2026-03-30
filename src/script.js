@@ -18,7 +18,7 @@ camera.position.set(6, 2, 8);
 
 // --- CAMERA FOLLOW SETTINGS ---
 // Décalage fixe de la caméra par rapport au personnage (en espace monde)
-const cameraOffset = new THREE.Vector3(0, 6, 10);
+const cameraOffset = new THREE.Vector3(0, 4, 10);
 // Vitesse de lissage du suivi (0 = instantané, valeurs < 1 = smooth)
 const cameraLerpFactor = 0.08;
 
@@ -85,7 +85,9 @@ const groundMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.8,
   map: noiseTex,
   roughnessMap: noiseTex,
-  side: THREE.DoubleSide
+  side: THREE.DoubleSide,
+    // transparent: true,
+//   opacity: 0.5
 });
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
@@ -93,8 +95,34 @@ ground.position.y = -0.15;
 ground.receiveShadow = true;
 scene.add(ground);
 
+// 🌊 EAU (anneau autour du sol)
+const waterInnerRadius = groundRadius -0.1 ; // commence juste après le sol
+const waterOuterRadius = groundRadius + 15;  // largeur de l’eau
+
+const waterGeometry = new THREE.RingGeometry(
+  waterInnerRadius,
+  waterOuterRadius,
+  128
+);
+
+const waterMaterial = new THREE.MeshStandardMaterial({
+  color: 0x4da6ff,
+  roughness: 0.2,
+  metalness: 0.3,
+  transparent: true,
+  opacity: 1
+});
+
+const water = new THREE.Mesh(waterGeometry, waterMaterial);
+
+water.rotation.x = -Math.PI / 2;
+water.position.y = -0.16; // légèrement en dessous du sol
+water.receiveShadow = true;
+
+scene.add(water);
+
 // HEMISPHERE LIGHT
-const hemiLight = new THREE.HemisphereLight(0xc5d9ff, 0x6ea572, 1.41);
+const hemiLight = new THREE.HemisphereLight(0xc5d9ff, 0x6ea572, 1.3);
 hemiLight.position.set(0, 20, 0);
 scene.add(hemiLight);
 
@@ -113,6 +141,32 @@ dirLight.shadow.camera.far = 30;
 dirLight.shadow.bias = -0.00005;
 dirLight.shadow.normalBias = 0.05;
 scene.add(dirLight);
+
+
+// FILL LIGHT (lumière de retour)
+const fillLight = new THREE.DirectionalLight(0xFFAAAA, 0.6);
+fillLight.position.set(-8, 16, 8); // opposé à la principale
+
+fillLight.castShadow = true;
+
+// Ombres plus légères (perf)
+fillLight.shadow.mapSize.width = 1024;
+fillLight.shadow.mapSize.height = 1024;
+
+fillLight.shadow.camera.top = 10;
+fillLight.shadow.camera.bottom = -10;
+fillLight.shadow.camera.left = -20;
+fillLight.shadow.camera.right = 20;
+
+fillLight.shadow.camera.near = 1;
+fillLight.shadow.camera.far = 40;
+
+// Ombres plus soft
+fillLight.shadow.bias = -0.001;
+fillLight.shadow.normalBias = 0.2;
+
+scene.add(fillLight);
+scene.add(fillLight.target);
 
 const gui = new GUI();
 
@@ -226,6 +280,7 @@ loader.load('/models/pingoui.glb', (gltf) => {
 
   model.position.set(0, 0, 0);
   model.scale.set(0.35, 0.35, 0.35);
+  
 
   head  = model.getObjectByName('head');
   apple = model.getObjectByName('apple');
@@ -245,6 +300,10 @@ loader.load('/models/pingoui.glb', (gltf) => {
     bodyBaseRot.copy(body.rotation);
     bodyBaseX = body.position.x;
   }
+  if (apple) {
+  appleBaseY = apple.position.y;
+  appleBaseRot.copy(apple.rotation);
+}
 
   model.traverse((child) => {
     if (child.isMesh) {
@@ -264,22 +323,23 @@ loader.load('/models/pingoui.glb', (gltf) => {
   controls.update();
 });
 
+
+const stopDistance = 0.7; // distance seuil (à ajuster)
+
+
 function updateMovement() {
   if (!model) return;
 
-  // ⛔ souris hors canvas
+  // ⛔ souris hors canvas → STOP TOTAL
   if (!mouseInside) {
-    velocity.lerp(new THREE.Vector3(0, 0, 0), 0.1);
-
-    if (velocity.length() < 0.001) velocity.set(0, 0, 0);
-
-    model.position.add(velocity);
+    velocity.set(0, 0, 0);
     return;
   }
 
   raycaster.setFromCamera(mouse, camera);
   raycaster.ray.intersectPlane(groundPlane, target);
 
+  // 🎯 tête suit la souris
   if (head) {
     const lookTarget = new THREE.Vector3(
       target.x,
@@ -290,26 +350,78 @@ function updateMovement() {
     head.rotateY(Math.PI);
   }
 
-  const direction = new THREE.Vector3()
-    .subVectors(target, model.position)
-    .multiplyScalar(acceleration * target.distanceTo(model.position));
+  const distance = target.distanceTo(model.position);
 
-  velocity.add(direction);
+  // 🎯 ZONE MORTE → STOP COMPLET
+  if (distance <= stopDistance) {
+    velocity.set(0, 0, 0);
+  } else {
+    // direction vers la cible
+    const direction = new THREE.Vector3()
+      .subVectors(target, model.position)
+      .normalize();
 
-  if (velocity.length() > maxSpeed) velocity.setLength(maxSpeed);
+    // accélération
+    velocity.add(direction.multiplyScalar(acceleration * distance));
 
-  velocity.multiplyScalar(friction);
+    // limite vitesse
+    if (velocity.length() > maxSpeed) {
+      velocity.setLength(maxSpeed);
+    }
 
-  if (velocity.length() < 0.001) velocity.set(0, 0, 0);
+    // friction
+    velocity.multiplyScalar(friction);
 
-  model.position.add(velocity);
+    // micro clamp
+    if (velocity.length() <= 0.001) {
+      velocity.set(0, 0, 0);
+    }
 
-  if (velocity.length() > 0.005) {
-    const lookTarget = new THREE.Vector3().addVectors(model.position, velocity);
-    model.lookAt(lookTarget);
+    // appliquer mouvement
+    model.position.add(velocity);
+
+    // rotation du perso
+    if (velocity.length() > 0.005) {
+      const lookTarget = new THREE.Vector3().addVectors(model.position, velocity);
+      const dx = lookTarget.x - model.position.x;
+        const dz = lookTarget.z - model.position.z;
+
+        const angle = Math.atan2(dx, dz);
+
+        model.rotation.y = angle;
+            }
   }
-}
 
+  // 🌊 --- NOUVEAU : GESTION EAU ---
+  const distanceFromCenter = Math.sqrt(
+    model.position.x * model.position.x +
+    model.position.z * model.position.z
+  );
+
+  if (distanceFromCenter > waterInnerRadius + 0.27) {
+    // dans l’eau → descend légèrement SOUS le sol
+    model.position.y = THREE.MathUtils.lerp(model.position.y, -0.4, 0.1);
+  } else {
+    // sur le sol → revient à 0
+    model.position.y = THREE.MathUtils.lerp(model.position.y, 0, 0.1);
+  }
+
+
+// 🚫 limite extérieure (empêche de sortir de l’eau)
+if (distanceFromCenter > waterOuterRadius - 0.5) {
+  const direction = new THREE.Vector3(
+    model.position.x,
+    0,
+    model.position.z
+  ).normalize();
+
+  model.position.x = direction.x * (waterOuterRadius - 0.5);
+  model.position.z = direction.z * (waterOuterRadius - 0.5);
+
+  // stop le mouvement vers l’extérieur
+  velocity.multiplyScalar(0.3);
+}
+}
 
 // --- CAMERA FOLLOW ---
 // Position cible de la caméra = position du modèle + offset
@@ -317,7 +429,15 @@ const desiredCameraPos = new THREE.Vector3();
 
 function updateCamera() {
   if (!model) return;
+if (model) {
+  dirLight.position.x = model.position.x + 10;
+  dirLight.position.z = model.position.z + 10;
 
+  dirLight.target.position.copy(model.position);
+  dirLight.target.updateMatrixWorld();
+
+  dirLight.shadow.camera.position.copy(dirLight.position);
+}
   // Position souhaitée : directement au-dessus/derrière le personnage
   desiredCameraPos.copy(model.position).add(cameraOffset);
 
@@ -348,6 +468,7 @@ function updateLegs() {
 
 // BODY BOUNCE
 function updateBodyBounce() {
+    const isInWater = model.position.y < -0.3;
   if (!body) return;
   const speed = velocity.length();
   if (speed < 0.01) {
@@ -356,19 +477,47 @@ function updateBodyBounce() {
     return;
   }
   body.position.y = bodyBaseY + Math.abs(Math.sin(walkTime)) * 0.15;
-  body.rotation.z = bodyBaseRot.z + Math.sin(walkTime) * 0.05;
+ const tiltDirection = isInWater ? -1 : 1;
+
+body.rotation.z = bodyBaseRot.z + Math.sin(walkTime) * 0.05 * tiltDirection;
+// 🎯 INCLINAISON DANS L'EAU
+if (body) {
+ const speedFactor = velocity.length() * 5;
+const targetTiltX = isInWater ? speedFactor : 0;
+//   const targetTiltX = isInWater ? -0.5 : 0;
+
+  body.rotation.x = THREE.MathUtils.lerp(
+    body.rotation.x,
+    bodyBaseRot.x + targetTiltX,
+    0.1
+  );
+  
+}
 }
 
 // APPLE BOUNCE
+let appleBaseRot = new THREE.Euler();
+
 function updateAppleBounce() {
   if (!apple) return;
+
   const speed = velocity.length();
+
+  // retour au calme
   if (speed < 0.08) {
     apple.position.y = THREE.MathUtils.lerp(apple.position.y, appleBaseY, 0.1);
+    apple.rotation.z = THREE.MathUtils.lerp(apple.rotation.z, appleBaseRot.z, 0.1);
     return;
   }
+
+  // BOUNCE vertical (déjà existant)
   const bodyBounce = Math.abs(Math.sin(walkTime)) * 0.1;
-  apple.position.y = appleBaseY + bodyBounce + 0.05 + Math.sin(walkTime * 2) * 0.02;
+  apple.position.y = appleBaseY + bodyBounce + 0.05;
+
+  // 🎯 NOUVEAU : bascule gauche/droite
+  const tilt = Math.sin(walkTime) * 0.2; // intensité ici
+
+  apple.rotation.z = appleBaseRot.z + tilt;
 }
 
 // WINGS
