@@ -51,6 +51,12 @@ controls.enableDamping = true;
 controls.enablePan = false; 
 controls.target.set(0, 0.5, 0);
 
+const footprints = [];
+let stepTimer = 0;
+const stepInterval = 0.25; // fréquence des pas
+
+
+
 function createNoiseTexture(size = 256) {
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -86,12 +92,12 @@ const groundMaterial = new THREE.MeshStandardMaterial({
 });
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
-ground.position.y = -0.15;
+ground.position.y = -0.3;
 ground.receiveShadow = true;
 scene.add(ground);
 
 // EAU
-const waterInnerRadius = groundRadius - 0.1 ;
+const waterInnerRadius = groundRadius - 1 ;
 const waterOuterRadius = groundRadius + 16;
 
 const waterGeometry = new THREE.RingGeometry(
@@ -102,17 +108,29 @@ const waterGeometry = new THREE.RingGeometry(
 
 const waterMaterial = new THREE.MeshStandardMaterial({
   color: 0x4da6ff,
-  roughness: 0.2,
-  metalness: 0.3,
+  roughness: 0.25,
+  metalness: 0.4,
   transparent: true,
-  opacity: 1
+  opacity: 0.95,
 });
-
 const water = new THREE.Mesh(waterGeometry, waterMaterial);
+water.geometry.computeVertexNormals();
 water.rotation.x = -Math.PI / 2;
 water.position.y = -0.16;
 water.receiveShadow = true;
 scene.add(water);
+const waterGeometry2 = new THREE.RingGeometry(
+  waterInnerRadius -3,
+  waterOuterRadius,
+  128
+);
+const water2 = new THREE.Mesh(waterGeometry2, waterMaterial);
+water2.position.y = -1;
+water2.rotation.x = -Math.PI / 2;
+
+
+scene.add(water2);
+
 
 // LIGHTS
 // ======================
@@ -304,6 +322,25 @@ function updateMovement() {
     model.position.z = direction.z * (waterOuterRadius - 1.5);
     velocity.multiplyScalar(0.3);
   }
+  const speed = velocity.length();
+
+if (speed > 0.02) {
+  stepTimer += 0.016;
+
+  if (stepTimer > stepInterval) {
+    stepTimer = 0;
+
+    const offset = new THREE.Vector3(
+      Math.sin(walkTime) * 0.15, // gauche/droite
+      0,
+      Math.cos(walkTime) * 0.15
+    );
+
+    const footPos = model.position.clone().add(offset);
+
+    createFootprint(footPos, model.rotation.y);
+  }
+}
 }
 
 const desiredCameraPos = new THREE.Vector3();
@@ -328,6 +365,8 @@ function updateCamera() {
     cameraLerpFactor
   );
 }
+
+
 
 function updateLegs() {
   if (!legL || !legR) return;
@@ -411,6 +450,31 @@ loader.load('/models/apple.glb', (gltf) => {
   }
 });
 
+
+function createFootprint(position, rotationY) {
+  const geo = new THREE.PlaneGeometry(0.25, 0.4); // rectangle pied
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x2e2e2e,
+    transparent: true,
+    opacity: 0.1,
+    roughness: 1,
+    metalness: 0
+  });
+
+  const footprint = new THREE.Mesh(geo, mat);
+
+  footprint.rotation.x = -Math.PI / 2;
+  footprint.rotation.z = rotationY;
+  footprint.position.copy(position);
+  footprint.position.y = -0.29; // juste au-dessus du sol
+
+  scene.add(footprint);
+
+  footprints.push({
+    mesh: footprint,
+    life: 1.0
+  });
+}
 // ANIMATE
 function animate() {
   requestAnimationFrame(animate);
@@ -420,6 +484,37 @@ function animate() {
   updateAppleBounce();
   updateWings();
   updateCamera();
+  const positions = water.geometry.attributes.position;
+const time = performance.now() * 0.001;
+
+for (let i = 0; i < positions.count; i++) {
+  const x = positions.getX(i);
+  const y = positions.getY(i);
+
+  const wave =
+    Math.sin(x * 0.5 + time) * 0.03 +
+    Math.cos(y * 0.5 + time * 1.2) * 0.03;
+
+  positions.setZ(i, wave);
+}
+for (let i = footprints.length - 1; i >= 0; i--) {
+  const f = footprints[i];
+
+  f.life -= 0.01;
+
+  // fade
+  f.mesh.material.opacity = f.life * 0.2;
+
+  // petit shrink stylé
+  const scale = 0.8 + f.life * 0.2;
+  f.mesh.scale.set(scale, scale, scale);
+
+  if (f.life <= 0) {
+    scene.remove(f.mesh);
+    footprints.splice(i, 1);
+  }
+}
+positions.needsUpdate = true;
   controls.update();
   renderer.render(scene, camera);
 }
