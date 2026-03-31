@@ -39,7 +39,7 @@ export function updateWaves() {
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i);
     const y = positions.getY(i);
-    const wave = Math.sin(x * 0.5 + time) * 0.03 + Math.cos(y * 0.5 + time * 1.2) * 0.03;
+    const wave = Math.sin(x * 0.5 + time) * 0.06 + Math.cos(y * 0.5 + time * 1.2) * 0.03;
     positions.setZ(i, wave);
   }
   positions.needsUpdate = true;
