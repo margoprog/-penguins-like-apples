@@ -2,6 +2,123 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { scene, camera, controls, cameraOffset, cameraLerpFactor, sunLight, rimLight, waterInnerRadius, waterOuterRadius, renderer } from './scene.js';
 import { createFootprint } from './world.js';
+import { apples } from './world.js';
+import { treeColliders } from './world.js';
+
+let collectedApples = [];
+const appleStackSpacing = 0.3;
+const collectDistance = 0.8;
+const APPLE_SCALE = 0.58;
+
+let isKnockedOut = false;
+let knockoutTimer = 0;
+const KNOCKOUT_DURATION = 1.8;
+
+function checkAppleCollection() {
+  for (const apple of apples) {
+    if (apple.collected) continue;
+
+    const dx = model.position.x - apple.mesh.position.x;
+    const dz = model.position.z - apple.mesh.position.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+
+    if (distance < collectDistance) {
+      apple.collected = true;
+
+      if (head) {
+        head.add(apple.mesh);
+
+        const index = collectedApples.length + 1;
+
+        apple.mesh.scale.set(APPLE_SCALE, APPLE_SCALE, APPLE_SCALE);
+
+        const offsetStrength = 0.03 + index * 0.005;
+        const randomX = (Math.random() - 0.5) * offsetStrength;
+        const randomZ = (Math.random() - 0.5) * offsetStrength;
+        apple.mesh.position.set(randomX, 0, randomZ);
+
+        apple.mesh.rotation.y = Math.random() * Math.PI * 2;
+        apple.mesh.rotation.x = (Math.random() - 0.5) * 0.2;
+        apple.mesh.rotation.z = (Math.random() - 0.5) * 0.2;
+
+        const baseOffset = 0.6;
+        const targetY = baseOffset + index * appleStackSpacing;
+
+        let t = 0;
+        function animateApple() {
+          t += 0.08;
+          apple.mesh.position.y = THREE.MathUtils.lerp(0, targetY, t);
+          if (t < 1) requestAnimationFrame(animateApple);
+        }
+        animateApple();
+      }
+
+      collectedApples.push(apple.mesh);
+
+      if (collectedApples.length > 12) {
+        dropAllApples();
+      }
+    }
+  }
+}
+
+function dropAllApples() {
+  // 💥 Pingouin KO
+  isKnockedOut = true;
+  knockoutTimer = 0;
+
+  for (const appleMesh of collectedApples) {
+    const worldPos = new THREE.Vector3();
+    const worldQuat = new THREE.Quaternion();
+    const worldScale = new THREE.Vector3();
+
+    appleMesh.getWorldPosition(worldPos);
+    appleMesh.getWorldQuaternion(worldQuat);
+    appleMesh.getWorldScale(worldScale);
+
+    head.remove(appleMesh);
+    scene.add(appleMesh);
+
+    appleMesh.position.copy(worldPos);
+    appleMesh.quaternion.copy(worldQuat);
+    appleMesh.scale.copy(worldScale);
+
+    const gravity = 0.018;
+    let vy = 0.08 + Math.random() * 0.1;
+    let vx = (Math.random() - 0.5) * 0.25;
+    let vz = (Math.random() - 0.5) * 0.25;
+
+    const appleData = apples.find(a => a.mesh === appleMesh);
+
+    function fall() {
+      vy -= gravity;
+      appleMesh.position.y += vy;
+      appleMesh.position.x += vx;
+      appleMesh.position.z += vz;
+      appleMesh.rotation.z += 0.1;
+      appleMesh.rotation.x += 0.07;
+
+      vx *= 0.98;
+      vz *= 0.98;
+
+      if (appleMesh.position.y > 0) {
+        requestAnimationFrame(fall);
+      } else {
+        appleMesh.position.y = 0;
+        appleMesh.position.x += vx * 3;
+        appleMesh.position.z += vz * 3;
+
+        if (appleData) {
+          appleData.collected = false;
+          appleData.mesh.position.copy(appleMesh.position);
+        }
+      }
+    }
+    fall();
+  }
+
+  collectedApples = [];
+}
 
 export let model = null;
 let head = null, apple = null, legL = null, legR = null;
@@ -74,10 +191,13 @@ loader.load('/models/pingoui.glb', (gltf) => {
 
 export function updateMovement() {
   if (!model) return;
+  if (isKnockedOut) return;
   if (!mouseInside) { velocity.set(0, 0, 0); return; }
 
   raycaster.setFromCamera(mouse, camera);
   raycaster.ray.intersectPlane(groundPlane, target);
+  checkAppleCollection();
+  updateAppleStackBounce();
 
   if (head) {
     const lookTarget = new THREE.Vector3(target.x, head.getWorldPosition(new THREE.Vector3()).y, target.z);
@@ -128,6 +248,59 @@ export function updateMovement() {
       const footPos = model.position.clone().add(offset);
       createFootprint(footPos, model.rotation.y);
     }
+  }
+}
+
+export function updateKnockout() {
+  if (!model) return;
+  if (!isKnockedOut) return;
+
+  knockoutTimer += 0.016;
+  const t = knockoutTimer / KNOCKOUT_DURATION;
+
+  if (t < 0.15) {
+    // ⚡ Chute ultra rapide style cartoon
+    const fallProgress = t / 0.15;
+    // Ease in cubique → lent au début puis BOUM
+    const eased = fallProgress * fallProgress * fallProgress;
+    model.rotation.order = 'YXZ';
+    model.rotation.x = THREE.MathUtils.lerp(0, Math.PI / 2, eased);
+    // Légère montée avant la chute (anticipation cartoon)
+    model.position.y = Math.sin(fallProgress * Math.PI) * 0.08;
+
+  } else if (t < 0.15 + 0.01) {
+    // 💥 Impact : écrasement instantané
+    model.rotation.order = 'YXZ';
+    model.rotation.x = Math.PI / 2;
+    model.position.y = 0;
+
+  } else if (t < 0.75) {
+    // 😵 Au sol : vibration rapide qui s'amortit
+    const groundTime = (t - 0.15) / (0.75 - 0.15);
+    const vibration = Math.sin(knockoutTimer * 30) * 0.04 * (1 - groundTime);
+    model.rotation.order = 'YXZ';
+    model.rotation.x = Math.PI / 2 + vibration;
+    model.position.y = 0;
+
+  } else if (t < 0.9) {
+    // 🦘 Saut cartoon : squash & stretch
+    const jumpProgress = (t - 0.75) / 0.15;
+    const jumpArc = Math.sin(jumpProgress * Math.PI);
+    model.rotation.order = 'YXZ';
+    model.rotation.x = THREE.MathUtils.lerp(Math.PI / 2, 0, jumpProgress * jumpProgress);
+    model.position.y = jumpArc * 0.5;
+    // Stretch vertical pendant le saut
+    const stretch = 1 + jumpArc * 0.3;
+    model.scale.set(0.35 / stretch, 0.35 * stretch, 0.35 / stretch);
+
+  } else {
+    // ✅ Remis debout, scale normal
+    model.rotation.x = 0;
+    model.rotation.z = 0;
+    model.rotation.order = 'XYZ';
+    model.position.y = 0;
+    model.scale.set(0.35, 0.35, 0.35);
+    isKnockedOut = false;
   }
 }
 
@@ -187,6 +360,32 @@ export function updateAppleBounce() {
   apple.rotation.z = appleBaseRot.z + Math.sin(walkTime) * 0.2;
 }
 
+export function updateAppleStackBounce() {
+  if (!head || collectedApples.length === 0) return;
+
+  const speed = velocity.length();
+
+  for (let i = 0; i < collectedApples.length; i++) {
+    const apple = collectedApples[i];
+    const index = i + 1;
+    const baseOffset = 0.4;
+    const baseY = baseOffset + index * appleStackSpacing;
+    const phase = walkTime + index * 0.4;
+
+    if (speed < 0.08) {
+      apple.position.y = THREE.MathUtils.lerp(apple.position.y, baseY, 0.1);
+      apple.rotation.z = THREE.MathUtils.lerp(apple.rotation.z, 0, 0.1);
+      apple.rotation.x = THREE.MathUtils.lerp(apple.rotation.x, 0, 0.1);
+      continue;
+    }
+
+    const heightFactor = 1 + index * 0.15;
+    apple.position.y = baseY + Math.abs(Math.sin(phase)) * 0.08 * heightFactor;
+    apple.rotation.z = Math.sin(phase) * 0.15 * heightFactor;
+    apple.rotation.x = Math.cos(phase) * 0.1 * heightFactor;
+  }
+}
+
 export function updateWings() {
   if (!wingL || !wingR) return;
   const speed = velocity.length();
@@ -197,25 +396,18 @@ export function updateWings() {
   wingR.rotation.z = wingRBaseRot.z + 0.2 - flap;
 }
 
-
-
-import { treeColliders } from './world.js'; // adapte le chemin
-
 const playerRadius = 0.6;
 
 function handleTreeCollisions(position) {
   for (const tree of treeColliders) {
     const treePos = tree.mesh.position;
-
     const dx = position.x - treePos.x;
     const dz = position.z - treePos.z;
-
     const distance = Math.sqrt(dx * dx + dz * dz);
     const minDistance = playerRadius + tree.radius;
 
     if (distance < minDistance) {
       const angle = Math.atan2(dz, dx);
-
       position.x = treePos.x + Math.cos(angle) * minDistance;
       position.z = treePos.z + Math.sin(angle) * minDistance;
     }

@@ -39,16 +39,18 @@ export function updateWaves() {
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i);
     const y = positions.getY(i);
-    const wave = Math.sin(x * 0.5 + time) * 0.06 + Math.cos(y * 0.5 + time * 1.2) * 0.03;
+    const wave = Math.sin(x * 0.5 + time) * 0.06 + Math.cos(y * 0.5 + time * 1.2) * 0.007;
     positions.setZ(i, wave);
   }
   positions.needsUpdate = true;
 }
 
 // POMMES
+
+export const apples = [];
 const loader = new GLTFLoader();
-const numberOfApples = 20;
-const dispersionRadius = 30 - 1;
+const numberOfApples = 30;
+const dispersionRadius = 30 - 2;
 
 loader.load('/models/apple.glb', (gltf) => {
   const originalApple = gltf.scene;
@@ -56,14 +58,22 @@ loader.load('/models/apple.glb', (gltf) => {
   originalApple.traverse((child) => {
     if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
   });
-  for (let i = 0; i < numberOfApples; i++) {
-    const appleClone = originalApple.clone();
-    const angle = Math.random() * Math.PI * 2;
-    const radius = Math.sqrt(Math.random()) * dispersionRadius;
-    appleClone.position.set(Math.cos(angle) * radius, -0.15, Math.sin(angle) * radius);
-    appleClone.rotation.y = Math.random() * Math.PI * 2;
-    scene.add(appleClone);
-  }
+for (let i = 0; i < numberOfApples; i++) {
+  const appleClone = originalApple.clone();
+
+  const angle = Math.random() * Math.PI * 2;
+  const radius = Math.sqrt(Math.random()) * dispersionRadius;
+
+  appleClone.position.set(Math.cos(angle) * radius, -0.15, Math.sin(angle) * radius);
+  appleClone.rotation.y = Math.random() * Math.PI * 2;
+
+  scene.add(appleClone);
+
+  apples.push({
+    mesh: appleClone,
+    collected: false
+  });
+}
 });
 
 // ARBRE
@@ -168,7 +178,7 @@ loader.load('/models/buisson.glb', (gltf) => {
   const buisson = gltf.scene;
 
   buisson.scale.set(0.5, 0.5, 0.5);
-  buisson.position.set(-4, -0.2, 5);
+  buisson.position.set(-7, -0.2, 9);
   buisson.rotation.y = Math.random() * Math.PI * 2;
 
   buisson.traverse((child) => {
@@ -184,10 +194,10 @@ loader.load('/models/buisson.glb', (gltf) => {
   const buisson2 = buisson.clone();
 
   // position opposée (miroir)
-  buisson2.position.set(10, -0.2, 7);
+  buisson2.position.set(11, -0.2, 7);
 
   // rotation différente pour éviter effet copier/coller
-  buisson2.rotation.y = Math.random() * Math.PI * 2;
+  buisson2.rotation.y = Math.random() * Math.PI * 1;
 
   scene.add(buisson2);
 });

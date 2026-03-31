@@ -4,6 +4,17 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 
 export const scene = new THREE.Scene();
+
+
+
+// Remplace "mousemove" par "pointermove"
+window.addEventListener('pointermove', (event) => {
+    // Calcul de la position (marche pour souris ET tactile)
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+});
+
+
 scene.background = new THREE.Color(0xfd9743);
 
 
@@ -23,8 +34,8 @@ loader.load('/environmentMaps/map2.png', (texture) => {
 export const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(6, 2, 8);
 
-export const cameraOffset = new THREE.Vector3(0, 4, 8);
-// export const cameraOffset = new THREE.Vector3(0, 4.75, 12.5);
+// export const cameraOffset = new THREE.Vector3(0, 4, 8);
+export const cameraOffset = new THREE.Vector3(0, 4.75, 10);
 
 export const cameraLerpFactor = 0.08;
 
@@ -217,6 +228,9 @@ beach.receiveShadow = true;
 scene.add(beach);
 
 // EAU
+// foam.js
+
+
 
 
 export const waterInnerRadius = groundRadius - 1;
@@ -229,6 +243,7 @@ const waterMaterial = new THREE.MeshStandardMaterial({
   transparent: true,
   opacity: 0.9,
 });
+
 export const water = new THREE.Mesh(waterGeometry, waterMaterial);
 water.geometry.computeVertexNormals();
 water.rotation.x = -Math.PI / 2;
@@ -246,6 +261,87 @@ water2.position.y = -1;
 water2.rotation.x = -Math.PI / 2;
 scene.add(water2);
 
+
+const createDashTexture = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 1;
+    const context = canvas.getContext('2d');
+    const gradient = context.createLinearGradient(0, 0, 64, 0);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    gradient.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 64, 1);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.repeat.set(20, 1);
+    return texture;
+};
+
+const setupCircularUVs = (geometry) => {
+    const uv = geometry.getAttribute('uv');
+    const pos = geometry.getAttribute('position');
+    const vec = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+        vec.fromBufferAttribute(pos, i);
+        const u = (Math.atan2(vec.y, vec.x) + Math.PI) / (Math.PI * 2);
+        uv.setXY(i, u, uv.getY(i));
+    }
+    uv.needsUpdate = true;
+};
+
+const updateZWaves = (mesh, time, freq, amp) => {
+    const pos = mesh.geometry.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+        const angle = Math.atan2(pos.getY(i), pos.getX(i));
+        const wave = Math.cos(angle * freq + time) * amp;
+        pos.setZ(i, wave);
+    }
+    pos.needsUpdate = true;
+};
+
+const foamMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    map: createDashTexture(),
+    transparent: true,
+    opacity: 0.1,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+});
+
+const foamGeometry1 = new THREE.RingGeometry(waterInnerRadius + 3, waterInnerRadius + 3.6, 128);
+setupCircularUVs(foamGeometry1);
+export const waterFoam = new THREE.Mesh(foamGeometry1, foamMaterial);
+waterFoam.position.y = 0;
+waterFoam.rotation.x = -Math.PI / 2;
+scene.add(waterFoam);
+
+const foamGeometry2 = new THREE.RingGeometry(waterInnerRadius + 5.5, waterInnerRadius + 7.0, 128);
+setupCircularUVs(foamGeometry2);
+export const waterFoam2 = new THREE.Mesh(foamGeometry2, foamMaterial.clone());
+waterFoam2.position.y = 0;
+waterFoam2.rotation.x = -Math.PI / 2;
+scene.add(waterFoam2);
+
+export const animateWaterFoam = () => {
+    if (!waterFoam || !waterFoam2) return;
+
+    const t = performance.now() * 0.0003;
+
+    const s1 = 1 + Math.sin(t * 0.8) * 0.03;
+    waterFoam.scale.set(s1, s1, 1);
+    waterFoam.material.map.offset.x += 0.0005;
+    waterFoam.material.opacity = 0.1 + Math.sin(t * 1.5) * 0.3;
+    updateZWaves(waterFoam, t, 12.0, 0.05);
+
+    const s2 = 1 + Math.sin(t * 0.8 + 1.0) * 0.04;
+    waterFoam2.scale.set(s2, s2, 1);
+    waterFoam2.material.map.offset.x -= 0.0003;
+    waterFoam2.material.opacity = 0.1 + Math.sin(t * 1.2) * 0.2;
+    updateZWaves(waterFoam2, t + 0.5, 8.0, 0.04);
+};
 // LUMIÈRES
 const ambient = new THREE.AmbientLight(0xffe5c6, 0.25);
 scene.add(ambient);
