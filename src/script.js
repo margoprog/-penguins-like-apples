@@ -5,6 +5,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 // SCENE
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xd9f5ff);
+scene.background = new THREE.Color(0xFFFFFF);
+
 
 // CAMERA
 const camera = new THREE.PerspectiveCamera(
@@ -16,7 +18,7 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(6, 2, 8);
 
 // --- CAMERA FOLLOW SETTINGS ---
-const cameraOffset = new THREE.Vector3(0, 4.5, 9);
+const cameraOffset = new THREE.Vector3(0, 4.75, 9);
 const cameraLerpFactor = 0.08;
 
 // 1. Initialiser le chargeur
@@ -53,7 +55,7 @@ controls.target.set(0, 0.5, 0);
 
 const footprints = [];
 let stepTimer = 0;
-const stepInterval = 0.25; // fréquence des pas
+const stepInterval = 0.35; // fréquence des pas
 
 
 
@@ -85,6 +87,8 @@ const groundRadius = 30;
 const groundGeometry = new THREE.CircleGeometry(groundRadius, 64);
 const groundMaterial = new THREE.MeshStandardMaterial({
   color: 0xb1Ed8c,
+//   color: 0xFFFFFF,
+
   roughness: 0.8,
   map: noiseTex,
   roughnessMap: noiseTex,
@@ -96,9 +100,78 @@ ground.position.y = -0.3;
 ground.receiveShadow = true;
 scene.add(ground);
 
+
+
+
+
+
+// PLAGE (anneau de sable avec noise)
+const beachInnerRadius = groundRadius - 8;
+const beachOuterRadius = groundRadius + 0.2;
+
+const beachGeometry = new THREE.RingGeometry(
+  beachInnerRadius,
+  beachOuterRadius,
+  128
+);
+
+const positions = beachGeometry.attributes.position;
+const colors = [];
+
+for (let i = 0; i < positions.count; i++) {
+  const x = positions.getX(i);
+  const z = positions.getZ(i);
+  const dist = Math.sqrt(x * x + z * z);
+
+  const t = (dist - beachInnerRadius) / (beachOuterRadius - beachInnerRadius);
+
+  // plus sombre vers l’eau
+  const shade = 0.75 + t * 0.25;
+
+  colors.push(shade, shade * 0.95, shade * 0.8);
+}
+
+beachGeometry.setAttribute(
+  'color',
+  new THREE.Float32BufferAttribute(colors, 3)
+);
+
+
+
+// réutilise ta fonction
+const sandNoise = createNoiseTexture();
+sandNoise.repeat.set(6, 1); // étire dans le sens circulaire
+
+const beachMaterial = new THREE.MeshStandardMaterial({
+  map: sandNoise,
+  roughnessMap: sandNoise,
+  color: 0xf2e2b6,
+  roughness: 1,
+  metalness: 0,
+  side: THREE.DoubleSide,
+});
+
+sandNoise.repeat.set(20, 20); // IMPORTANT : pas 6,1 → ça évite les bandes
+sandNoise.offset.set(Math.random(), Math.random());
+beachMaterial.color.multiplyScalar(0.95 + Math.random() * 0.1);
+const beach = new THREE.Mesh(beachGeometry, beachMaterial);
+beach.rotation.x = -Math.PI / 2;
+beach.position.y = -0.28; // évite le z-fighting
+beach.receiveShadow = true;
+sandNoise.rotation = Math.random() * Math.PI;
+sandNoise.center.set(0.5, 0.5);
+scene.add(beach);
+beach.position.y = -0.27; // légèrement AU-DESSUS du sol
+
+
+
+
+
+
+
 // EAU
 const waterInnerRadius = groundRadius - 1 ;
-const waterOuterRadius = groundRadius + 16;
+const waterOuterRadius = groundRadius + 150;
 
 const waterGeometry = new THREE.RingGeometry(
   waterInnerRadius,
@@ -165,12 +238,12 @@ scene.add(sunLight);
 scene.add(sunLight.target);
 
 // 🌤️ Fill light (bleu doux)
-const fillLight = new THREE.DirectionalLight(0x9fd6ff, 0.6);
+const fillLight = new THREE.DirectionalLight(0x9fd6ff, 0.8);
 fillLight.position.set(-10, 8, -6);
 scene.add(fillLight);
 
 // 💡 Rim light (contour lumineux)
-const rimLight = new THREE.DirectionalLight(0xffffff, 1.2);
+const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
 rimLight.position.set(-6, 6, -8);
 scene.add(rimLight);
 
@@ -311,7 +384,7 @@ function updateMovement() {
   const distanceFromCenter = Math.sqrt(model.position.x ** 2 + model.position.z ** 2);
 
   if (distanceFromCenter > waterInnerRadius + 0.27) {
-    model.position.y = THREE.MathUtils.lerp(model.position.y, -0.4, 0.1);
+    model.position.y = THREE.MathUtils.lerp(model.position.y, -0.5, 0.1);
   } else {
     model.position.y = THREE.MathUtils.lerp(model.position.y, 0, 0.1);
   }
@@ -323,15 +396,22 @@ function updateMovement() {
     velocity.multiplyScalar(0.3);
   }
   const speed = velocity.length();
+const isInWater = model.position.y < -0.2;
 
-if (speed > 0.02) {
-  stepTimer += 0.016;
+if (speed > 0.01 && !isInWater) {
 
-  if (stepTimer > stepInterval) {
+
+  // 👉 interval dynamique (plus rapide = plus de pas)
+  const dynamicInterval = THREE.MathUtils.lerp(0.25, 0.08, speed * 6);
+
+  // 👉 timer accéléré avec la vitesse
+  stepTimer += 0.016 * (1 + speed * 12);
+
+  if (stepTimer > dynamicInterval) {
     stepTimer = 0;
 
     const offset = new THREE.Vector3(
-      Math.sin(walkTime) * 0.15, // gauche/droite
+      Math.sin(walkTime) * 0.15,
       0,
       Math.cos(walkTime) * 0.15
     );
@@ -340,6 +420,7 @@ if (speed > 0.02) {
 
     createFootprint(footPos, model.rotation.y);
   }
+
 }
 }
 
@@ -444,7 +525,7 @@ loader.load('/models/apple.glb', (gltf) => {
     const appleClone = originalApple.clone();
     const angle = Math.random() * Math.PI * 2;
     const radius = Math.sqrt(Math.random()) * dispersionRadius;
-    appleClone.position.set(Math.cos(angle) * radius, -0.05, Math.sin(angle) * radius);
+    appleClone.position.set(Math.cos(angle) * radius, -0.15, Math.sin(angle) * radius);
     appleClone.rotation.y = Math.random() * Math.PI * 2;
     scene.add(appleClone);
   }
@@ -454,9 +535,9 @@ loader.load('/models/apple.glb', (gltf) => {
 function createFootprint(position, rotationY) {
   const geo = new THREE.PlaneGeometry(0.25, 0.4); // rectangle pied
   const mat = new THREE.MeshStandardMaterial({
-    color: 0x2e2e2e,
+    color: 0x1e1e1e,
     transparent: true,
-    opacity: 0.1,
+    opacity: 0.05,
     roughness: 1,
     metalness: 0
   });
@@ -466,7 +547,7 @@ function createFootprint(position, rotationY) {
   footprint.rotation.x = -Math.PI / 2;
   footprint.rotation.z = rotationY;
   footprint.position.copy(position);
-  footprint.position.y = -0.29; // juste au-dessus du sol
+  footprint.position.y = -0.25; // juste au-dessus du sol
 
   scene.add(footprint);
 
@@ -475,6 +556,32 @@ function createFootprint(position, rotationY) {
     life: 1.0
   });
 }
+
+
+
+loader.load('/models/tree.glb', (gltf) => {
+  const tree = gltf.scene;
+
+  tree.scale.set(4, 4, 4); // ajuste si besoin
+
+  tree.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  // 👉 POSITION (pas au centre)
+  tree.position.set(5, 3.2, -3); // 👈 change ici
+
+  scene.add(tree);
+});
+
+
+
+
+
+
 // ANIMATE
 function animate() {
   requestAnimationFrame(animate);
@@ -503,7 +610,7 @@ for (let i = footprints.length - 1; i >= 0; i--) {
   f.life -= 0.01;
 
   // fade
-  f.mesh.material.opacity = f.life * 0.2;
+  f.mesh.material.opacity = f.life * 0.1;
 
   // petit shrink stylé
   const scale = 0.8 + f.life * 0.2;
