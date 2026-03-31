@@ -67,12 +67,170 @@ loader.load('/models/apple.glb', (gltf) => {
 });
 
 // ARBRE
+export const treeColliders = [];
 loader.load('/models/tree.glb', (gltf) => {
-  const tree = gltf.scene;
-  tree.scale.set(4, 4, 4);
-  tree.traverse((child) => {
-    if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
+  const originalTree = gltf.scene;
+  originalTree.scale.set(1.2, 1.2, 1.2);
+
+  originalTree.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
   });
-  tree.position.set(5, 3.2, -3);
-  scene.add(tree);
+
+  // 🌳 arbre 1
+  const tree1 = originalTree.clone();
+  tree1.position.set(5, -0.4, -3);
+  tree1.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(tree1);
+  addTreeCollider(tree1, 1.2);
+
+  // 🌳 arbre 2
+  const tree2 = originalTree.clone();
+  tree2.position.set(-4, -0.4, 4);
+  tree2.rotation.y = Math.random() * Math.PI * 0.55;
+  scene.add(tree2);
+  addTreeCollider(tree2, 1.2);
+
+
+    // 🌳 arbre 2
+  const tree3 = originalTree.clone();
+  tree3.position.set(9, -0.4, 9);
+  tree3.rotation.y = Math.random() * Math.PI * 0.6;
+  scene.add(tree3);
+  addTreeCollider(tree3, 1.2);
+
 });
+
+function addTreeCollider(tree, radius = 1.2) {
+  treeColliders.push({
+    mesh: tree,
+    radius: radius
+  });
+}
+
+// ARBRE B
+loader.load('/models/tree_b.glb', (gltf) => {
+  const originalTree_b = gltf.scene;
+   originalTree_b.scale.set(1.2, 1.2, 1.2);
+
+  originalTree_b.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  // 🌳 arbre 1
+  const tree_b1 = originalTree_b.clone();
+  tree_b1.position.set(15, -0.4, -3);
+  tree_b1.rotation.y = Math.random() * Math.PI * 2;
+   tree_b1.scale.set(1,1,1);
+
+  scene.add(tree_b1);
+  addTreeCollider(tree_b1, 1.2);
+  
+
+  // 🌳 arbre 2
+  const tree_b2 = originalTree_b.clone();
+  tree_b2.position.set(-14, -0.4, 4);
+  tree_b2.rotation.y = Math.random() * Math.PI * 0.55;
+  scene.add(tree_b2);
+  addTreeCollider(tree_b2, 1.2);
+
+
+    // 🌳 arbre 2
+  const tree_b3 = originalTree_b.clone();
+  tree_b3.position.set(15, -0.4, 9);
+  tree_b3.rotation.y = Math.random() * Math.PI * 0.6;
+  scene.add(tree_b3);
+  addTreeCollider(tree_b3, 1.2);
+
+
+     // 🌳 arbre 2
+  const tree_b4 = originalTree_b.clone();
+  tree_b4.position.set(0, -0.4, 19);
+  tree_b4.rotation.y = Math.random() * Math.PI * 0.6;
+  scene.add(tree_b4);
+  addTreeCollider(tree_b4, 1.2);
+
+       // 🌳 arbre 2
+  const tree_b5 = originalTree_b.clone();
+  tree_b5.position.set(-5, -0.4, -15);
+  tree_b5.rotation.y = Math.random() * Math.PI * 0;
+  scene.add(tree_b5);
+  addTreeCollider(tree_b5, 1.2);
+
+});
+
+loader.load('/models/buisson.glb', (gltf) => {
+  const buisson = gltf.scene;
+
+  buisson.scale.set(0.5, 0.5, 0.5);
+  buisson.position.set(-4, -0.2, 5);
+  buisson.rotation.y = Math.random() * Math.PI * 2;
+
+  buisson.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  scene.add(buisson);
+
+  // 🌿 CLONE
+  const buisson2 = buisson.clone();
+
+  // position opposée (miroir)
+  buisson2.position.set(10, -0.2, 7);
+
+  // rotation différente pour éviter effet copier/coller
+  buisson2.rotation.y = Math.random() * Math.PI * 2;
+
+  scene.add(buisson2);
+});
+
+
+const leafCount = 50;
+const leaves = [];
+
+const geometry = new THREE.PlaneGeometry(0.1, 0.1);
+const material = new THREE.MeshBasicMaterial({
+  color: 0xfc7c54,
+  side: THREE.DoubleSide,
+  transparent: true,
+});
+
+for (let i = 0; i < leafCount; i++) {
+  const leaf = new THREE.Mesh(geometry, material);
+
+  leaf.position.set(
+    (Math.random() - 0.5) * 20,
+    Math.random() * 5 + 2,
+    (Math.random() - 0.5) * 20
+  );
+
+  leaf.userData = {
+    speed: 0.001 + Math.random() * 0.02,
+    sway: Math.random() * Math.PI * 2,
+  };
+
+  scene.add(leaf);
+  leaves.push(leaf);
+}
+
+export function animateLeaves() {
+  leaves.forEach((leaf) => {
+    leaf.position.y -= leaf.userData.speed;
+
+    // mouvement flottant
+    leaf.position.x += Math.sin(Date.now() * 0.001 + leaf.userData.sway) * 0.01;
+
+    // reset en haut
+    if (leaf.position.y < 0) {
+      leaf.position.y = Math.random() * 5 + 2;
+    }
+  });
+}

@@ -1,6 +1,6 @@
 import { renderer, scene, camera, controls } from './scene.js';
 import { updateMovement, updateLegs, updateBodyBounce, updateAppleBounce, updateWings, updateCamera } from './penguin.js';
-import { updateFootprints, updateWaves } from './world.js';
+import { updateFootprints, updateWaves, animateLeaves } from './world.js';
 
 
 function animate() {
@@ -12,6 +12,7 @@ function animate() {
   updateWings();
   updateCamera();
   updateWaves();
+  animateLeaves();
   updateFootprints();
   controls.update();
   renderer.render(scene, camera);

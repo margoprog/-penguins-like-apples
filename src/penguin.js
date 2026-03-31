@@ -95,6 +95,7 @@ export function updateMovement() {
     velocity.multiplyScalar(friction);
     if (velocity.length() <= 0.001) velocity.set(0, 0, 0);
     model.position.add(velocity);
+    handleTreeCollisions(model.position);
 
     if (velocity.length() > 0.005) {
       const lookTarget = new THREE.Vector3().addVectors(model.position, velocity);
@@ -194,4 +195,29 @@ export function updateWings() {
   const flap = Math.sin(walkTime) * 0.3;
   wingL.rotation.z = wingLBaseRot.z - 0.2 + flap;
   wingR.rotation.z = wingRBaseRot.z + 0.2 - flap;
+}
+
+
+
+import { treeColliders } from './world.js'; // adapte le chemin
+
+const playerRadius = 0.6;
+
+function handleTreeCollisions(position) {
+  for (const tree of treeColliders) {
+    const treePos = tree.mesh.position;
+
+    const dx = position.x - treePos.x;
+    const dz = position.z - treePos.z;
+
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    const minDistance = playerRadius + tree.radius;
+
+    if (distance < minDistance) {
+      const angle = Math.atan2(dz, dx);
+
+      position.x = treePos.x + Math.cos(angle) * minDistance;
+      position.z = treePos.z + Math.sin(angle) * minDistance;
+    }
+  }
 }

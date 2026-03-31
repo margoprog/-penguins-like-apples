@@ -23,7 +23,9 @@ loader.load('/environmentMaps/map2.png', (texture) => {
 export const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(6, 2, 8);
 
-export const cameraOffset = new THREE.Vector3(0, 4.75, 7.5);
+export const cameraOffset = new THREE.Vector3(0, 4, 8);
+// export const cameraOffset = new THREE.Vector3(0, 4.75, 12.5);
+
 export const cameraLerpFactor = 0.08;
 
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
