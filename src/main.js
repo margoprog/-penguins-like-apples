@@ -1,8 +1,9 @@
 import { renderer, scene, camera, controls,animateWaterFoam } from './scene.js';
-import { updateMovement, updateLegs, updateBodyBounce, updateAppleBounce, updateWings, updateCamera, updateKnockout } from './penguin.js';
+import { updateMovement, updateLegs, updateBodyBounce, updateAppleBounce, updateWings, updateCamera, updateKnockout, initAudio } from './penguin.js';
 import { updateFootprints, updateWaves, animateLeaves } from './world.js';
 
-
+  initAudio(camera);
+  
 function animate() {
   requestAnimationFrame(animate);
   updateMovement();
@@ -16,6 +17,7 @@ function animate() {
   animateLeaves();
   updateFootprints();
   animateWaterFoam();
+
   
   
   controls.update();

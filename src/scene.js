@@ -7,15 +7,11 @@ export const scene = new THREE.Scene();
 
 
 
-// Remplace "mousemove" par "pointermove"
-window.addEventListener('pointermove', (event) => {
-    // Calcul de la position (marche pour souris ET tactile)
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-});
-
 
 scene.background = new THREE.Color(0xfd9743);
+// Brume linéaire (commence à X unités, opaque à Y unités)
+scene.fog = new THREE.Fog(0xffd1c4, 30, 150);
+//                        couleur  near  far
 
 
 
@@ -379,3 +375,4 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+

@@ -5,6 +5,50 @@ import { createFootprint } from './world.js';
 import { apples } from './world.js';
 import { treeColliders } from './world.js';
 
+
+//SOUND
+
+let popBuffer = null; 
+
+fetch('/sounds/pop.wav')
+  .then(r => r.arrayBuffer())
+  .then(data => audioCtx.decodeAudioData(data))
+  .then(buffer => { popBuffer = buffer; });
+
+function playpop(volume = 1) {
+  if (!popBuffer) return;
+  const source = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  gain.gain.value = volume;
+  source.buffer = popBuffer;
+  source.connect(gain);
+  gain.connect(audioCtx.destination);
+  source.start(0);
+}
+
+
+let fallBuffer = null; 
+
+fetch('/sounds/fall.wav')
+  .then(r => r.arrayBuffer())
+  .then(data => audioCtx.decodeAudioData(data))
+  .then(buffer => { fallBuffer = buffer; });
+
+function playfall(volume = 1) {
+  if (!fallBuffer) return;
+  const source = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  gain.gain.value = volume;
+  source.buffer = fallBuffer;
+  source.connect(gain);
+  gain.connect(audioCtx.destination);
+  source.start(0);
+}
+
+
+
+
+
 let collectedApples = [];
 const appleStackSpacing = 0.3;
 const collectDistance = 0.8;
@@ -51,6 +95,7 @@ function checkAppleCollection() {
           if (t < 1) requestAnimationFrame(animateApple);
         }
         animateApple();
+        playpop(0.5);
       }
 
       collectedApples.push(apple.mesh);
@@ -66,6 +111,7 @@ function dropAllApples() {
   // 💥 Pingouin KO
   isKnockedOut = true;
   knockoutTimer = 0;
+  
 
   for (const appleMesh of collectedApples) {
     const worldPos = new THREE.Vector3();
@@ -115,6 +161,7 @@ function dropAllApples() {
       }
     }
     fall();
+    playfall(0.5)
   }
 
   collectedApples = [];
@@ -321,14 +368,50 @@ export function updateCamera() {
   );
 }
 
+let lastStepSign = 0;
+
+
+
+let stepBuffer = null;
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+fetch('/sounds/step.mp3') // ← ton chemin
+  .then(r => r.arrayBuffer())
+  .then(data => audioCtx.decodeAudioData(data))
+  .then(buffer => { stepBuffer = buffer; });
+
+function playStep(volume = 1) {
+  if (!stepBuffer) return;
+  const source = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  gain.gain.value = volume;
+  source.buffer = stepBuffer;
+  source.connect(gain);
+  gain.connect(audioCtx.destination);
+  source.start(0);
+}
+
 export function updateLegs() {
   if (!legL || !legR) return;
   const speed = velocity.length();
-  if (speed < 0.01) { legL.rotation.copy(legLBaseRot); legR.rotation.copy(legRBaseRot); return; }
+  if (speed < 0.01) {
+    legL.rotation.copy(legLBaseRot);
+    legR.rotation.copy(legRBaseRot);
+    return;
+  }
+
   walkTime += speed * 5;
-  const angle = Math.sin(walkTime) * 0.8;
+  const sin = Math.sin(walkTime);
+  const angle = sin * 0.8;
   legL.rotation.x = legLBaseRot.x + angle;
   legR.rotation.x = legRBaseRot.x - angle;
+
+  const sign = Math.sign(sin);
+  if (sign !== lastStepSign) {
+    lastStepSign = sign;
+    if( model.position.y > -0.3)
+        playStep(1.3);
+  }
 }
 
 export function updateBodyBounce() {
@@ -413,3 +496,29 @@ function handleTreeCollisions(position) {
     }
   }
 }
+
+
+
+
+let footstepSound;
+
+export function initAudio(camera) {
+  const listener = new THREE.AudioListener();
+  camera.add(listener);
+
+  footstepSound = new THREE.Audio(listener);
+
+  // 👉 MANQUANT dans ton code
+  const audioLoader = new THREE.AudioLoader();
+
+  audioLoader.load('/sounds/step.mp3', (buffer) => {
+    console.log("SON CHARGÉ ✅");
+
+    footstepSound.setBuffer(buffer);
+    footstepSound.setVolume(0.5);
+  }, undefined, (err) => {
+    console.error("Erreur chargement ❌", err);
+  });
+}
+
+
