@@ -19,3 +19,49 @@ body
     left: 0;
     outline: none;
 }
+#overlay-logo img {
+  width: 200%;     /* 👈 prend la largeur du conteneur */
+  height: auto;    /* 👈 garde les proportions */
+  display: block;  /* 👈 enlève les petits espaces bizarres */
+    transition: opacity 0.5s ease, visibility 0.5s;
+}
+#overlay-logo {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 100;
+
+  width: 300px;          /* 👈 taille voulue */
+  max-width: 80vw;       /* 👈 sécurité responsive */
+  
+  height: auto;
+
+  background-color: none;
+  cursor: pointer;
+  border-radius: 8px;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: clamp(150px, 30vw, 400px);
+
+  transition: opacity 0.5s ease, visibility 0.5s;
+}
+
+/* ============================================================
+   MEDIA QUERY : Règles spécifiques pour Tablettes et Mobiles
+   Cible les écrans <= 768px de large
+   ============================================================ */
+@media screen and (max-width: 768px) {
+  #overlay-logo {
+    width: 170px; /* 👈 plus petit */
+  }
+}
+
+/* Classe pour cacher le logo en JavaScript */
+#overlay-logo.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none; /* Empêche de cliquer dessus quand il est invisible */
+}

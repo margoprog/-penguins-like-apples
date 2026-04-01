@@ -240,6 +240,11 @@ export function updateMovement() {
   if (!model) return;
   if (isKnockedOut) return;
   if (!mouseInside) { velocity.set(0, 0, 0); return; }
+  const logoOverlay = document.getElementById('overlay-logo');
+  if (logoOverlay && !logoOverlay.classList.contains('hidden')) {
+    velocity.set(0, 0, 0); // On s'assure que la vitesse reste à zéro
+    return; // On arrête l'exécution de la fonction ici
+  }
 
   raycaster.setFromCamera(mouse, camera);
   raycaster.ray.intersectPlane(groundPlane, target);
@@ -386,6 +391,7 @@ function playStep(volume = 1) {
   const gain = audioCtx.createGain();
   gain.gain.value = volume;
   source.buffer = stepBuffer;
+  console.log("wtf")
   source.connect(gain);
   gain.connect(audioCtx.destination);
   source.start(0);
@@ -410,7 +416,7 @@ export function updateLegs() {
   if (sign !== lastStepSign) {
     lastStepSign = sign;
     if( model.position.y > -0.3)
-        playStep(1.3);
+        playStep(1);
   }
 }
 
@@ -500,25 +506,43 @@ function handleTreeCollisions(position) {
 
 
 
-let footstepSound;
+
+let sound, listener; // Variables globales
 
 export function initAudio(camera) {
-  const listener = new THREE.AudioListener();
+  // 1. Création de l'oreille
+  listener = new THREE.AudioListener();
   camera.add(listener);
 
-  footstepSound = new THREE.Audio(listener);
+  // 2. Création de la source sonore
+  sound = new THREE.Audio(listener);
 
-  // 👉 MANQUANT dans ton code
+  // 3. Chargement
   const audioLoader = new THREE.AudioLoader();
-
-  audioLoader.load('/sounds/step.mp3', (buffer) => {
-    console.log("SON CHARGÉ ✅");
-
-    footstepSound.setBuffer(buffer);
-    footstepSound.setVolume(0.5);
-  }, undefined, (err) => {
-    console.error("Erreur chargement ❌", err);
+  audioLoader.load('/sounds/music.mp3', (buffer) => {
+    sound.setBuffer(buffer);
+    sound.setLoop(true);
+    sound.setVolume(0.1);
+    console.log("Musique prête !");
   });
 }
 
+function handleUserInteraction() {
+  if (!sound || !listener) return;
 
+  // Débloque l'audio pour le navigateur
+  if (listener.context.state === 'suspended') {
+    listener.context.resume();
+  }
+
+  if (!sound.isPlaying) {
+    sound.play();
+    console.log("Musique lancée 🔊");
+  }
+  
+  // Optionnel : retirer les listeners après le premier succès pour économiser des ressources
+  window.removeEventListener('click', handleUserInteraction);
+}
+
+window.addEventListener('click', handleUserInteraction);
+window.addEventListener('touchstart', handleUserInteraction);

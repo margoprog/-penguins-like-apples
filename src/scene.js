@@ -10,9 +10,6 @@ export const scene = new THREE.Scene();
 
 scene.background = new THREE.Color(0xfd9743);
 // Brume linéaire (commence à X unités, opaque à Y unités)
-scene.fog = new THREE.Fog(0xffd1c4, 30, 150);
-//                        couleur  near  far
-
 
 
 const loader = new THREE.TextureLoader();

@@ -8,7 +8,7 @@ const footprints = [];
 export function createFootprint(position, rotationY) {
   const geo = new THREE.PlaneGeometry(0.25, 0.4);
   const mat = new THREE.MeshStandardMaterial({
-    color: 0x1e1e1e, transparent: true, opacity: 0.05, roughness: 1, metalness: 0,
+    color: 0xa6724b, transparent: true, opacity: 0.05, roughness: 1, metalness: 0,
   });
   const footprint = new THREE.Mesh(geo, mat);
   footprint.rotation.x = -Math.PI / 2;
