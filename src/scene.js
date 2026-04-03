@@ -16,8 +16,6 @@ const loader = new THREE.TextureLoader();
 
 loader.load('/environmentMaps/map2.png', (texture) => {
   texture.mapping = THREE.EquirectangularReflectionMapping;
-
-  // important pour un rendu propre
   texture.colorSpace = THREE.SRGBColorSpace;
 
   scene.environment = texture;
@@ -48,6 +46,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 export const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.enablePan = false;
+controls.enableRotate = false;
 controls.target.set(0, 0.5, 0);
 
 function createNoiseTexture(size = 256) {
